@@ -4,9 +4,15 @@ Jinja2 Documentation:    http://jinja.pocoo.org/2/documentation/
 Werkzeug Documentation:  http://werkzeug.pocoo.org/documentation/
 This file creates your application.
 """
+import os
+from app import app, db
+from flask import render_template, request, redirect, url_for, flash, session, abort, send_from_directory
+from .config import Config
+from werkzeug.utils import secure_filename
+from app.forms import PropertyForm
+from app.model import PropertyInfo
+from flask_wtf.csrf import CSRFProtect
 
-from app import app
-from flask import render_template, request, redirect, url_for
 
 
 ###
@@ -23,6 +29,66 @@ def home():
 def about():
     """Render the website's about page."""
     return render_template('about.html', name="Mary Jane")
+
+@app.route('/property', methods=["GET", "POST"])
+def property1():
+    form = PropertyForm()
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            title = form.title.data
+            bedrooms = form.bedroom.data
+            bathrooms = form.bathroom.data
+            location = form.location.data
+            price = form.price.data
+            proptype = form.proptype.data
+            description = form.description.data
+            image = form.photo.data
+
+            property = PropertyInfo(title, bedrooms, bathrooms, location, price, proptype, description, filename)
+            db.session.add(property)
+            db.session.commit()
+
+            filename = secure_filename(image.filename)
+            image.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
+        flash('Your Property Has been Uploaded!','success')
+        return redirect(url_for('properties'))
+            
+    return render_template('property.html', form=form)
+
+@app.route('/properties', methods=['GET'])
+def properties():
+    #image_list = get_uploaded_images()
+    #return render_template('properties.html', image_list=image_list)
+    properties = PropertyInfo.query.all()
+    if request.method=='GET':
+        return render_template('properties.html', properties=properties)
+
+
+@app.route('/property/<propertyid>')
+def propid(propertyid):
+    #root_dir = os.getcwd()
+    #return send_from_directory(os.path.join(root_dir,app.config['UPLOAD_FOLDER']),filename)
+    #properties = db.session.query(PropertyInfo).filter(PropertyInfo.id==propertyid).first()
+    properties = PropertyInfo.query.filter_by(id = propertyid).first()
+    if request.method=='GET':
+        return render_template('property_by_id.html',properties=properties)
+
+
+@app.route('/upload/<filename>')
+def get_image(filename):
+    root_dir = os.getcwd()
+    return send_from_directory(os.path.join(root_dir, app.config['UPLOAD_FOLDER']), filename)
+
+def get_uploaded_images():
+    rootdir = os.getcwd()
+    print(rootdir)
+    fileslst = []
+    for subdir, dirs, files in os.walk(rootdir + '/uploads'):
+        for image in files:
+            #fileslst.append(image)
+            if image!=".gitkeep":
+                fileslst.append(image)
+    return fileslst
 
 
 ###
